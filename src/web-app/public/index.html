@@ -1,0 +1,891 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ナレーション生成アプリ</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Yu Gothic', 'Hiragino Kaku Gothic ProN', 'Meiryo', sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      padding: 20px;
+    }
+
+    .container {
+      max-width: 900px;
+      margin: 0 auto;
+    }
+
+    .header {
+      background: white;
+      padding: 30px;
+      border-radius: 15px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+      margin-bottom: 20px;
+      text-align: center;
+    }
+
+    .header h1 {
+      color: #667eea;
+      font-size: 32px;
+      margin-bottom: 10px;
+    }
+
+    .header p {
+      color: #666;
+      font-size: 16px;
+    }
+
+    .status-bar {
+      background: rgba(255,255,255,0.95);
+      padding: 15px 20px;
+      border-radius: 10px;
+      margin-bottom: 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+    }
+
+    .status-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .status-indicator {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: #4caf50;
+    }
+
+    .status-indicator.error {
+      background: #f44336;
+    }
+
+    .tabs {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 20px;
+    }
+
+    .tab-button {
+      flex: 1;
+      padding: 15px;
+      background: rgba(255,255,255,0.9);
+      border: none;
+      border-radius: 10px;
+      font-size: 16px;
+      font-weight: bold;
+      cursor: pointer;
+      transition: all 0.3s;
+      box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+    }
+
+    .tab-button:hover {
+      background: white;
+      transform: translateY(-2px);
+      box-shadow: 0 7px 20px rgba(0,0,0,0.15);
+    }
+
+    .tab-button.active {
+      background: white;
+      color: #667eea;
+      box-shadow: 0 7px 20px rgba(0,0,0,0.15);
+    }
+
+    .tab-content {
+      display: none;
+      background: white;
+      padding: 30px;
+      border-radius: 15px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+    }
+
+    .tab-content.active {
+      display: block;
+      animation: fadeIn 0.3s;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .form-group {
+      margin-bottom: 25px;
+    }
+
+    label {
+      display: block;
+      margin-bottom: 8px;
+      font-weight: bold;
+      color: #333;
+      font-size: 14px;
+    }
+
+    input[type="text"],
+    textarea {
+      width: 100%;
+      padding: 12px;
+      border: 2px solid #e0e0e0;
+      border-radius: 8px;
+      font-size: 14px;
+      font-family: inherit;
+      transition: border-color 0.3s;
+    }
+
+    input[type="text"]:focus,
+    textarea:focus {
+      outline: none;
+      border-color: #667eea;
+    }
+
+    textarea {
+      resize: vertical;
+      min-height: 200px;
+      line-height: 1.6;
+    }
+
+    .btn {
+      padding: 15px 30px;
+      border: none;
+      border-radius: 8px;
+      font-size: 16px;
+      font-weight: bold;
+      cursor: pointer;
+      transition: all 0.3s;
+      width: 100%;
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+    }
+
+    .btn-primary:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 7px 20px rgba(102, 126, 234, 0.4);
+    }
+
+    .btn-primary:disabled {
+      background: #ccc;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    .btn-success {
+      background: #4caf50;
+      color: white;
+    }
+
+    .btn-danger {
+      background: #f44336;
+      color: white;
+      padding: 8px 15px;
+      font-size: 14px;
+      width: auto;
+    }
+
+    .result-box {
+      margin-top: 20px;
+      padding: 20px;
+      border-radius: 8px;
+      display: none;
+    }
+
+    .result-box.success {
+      background: #e8f5e9;
+      border: 2px solid #4caf50;
+      display: block;
+    }
+
+    .result-box.error {
+      background: #ffebee;
+      border: 2px solid #f44336;
+      display: block;
+    }
+
+    .download-link {
+      display: inline-block;
+      margin-top: 15px;
+      padding: 12px 25px;
+      background: #667eea;
+      color: white;
+      text-decoration: none;
+      border-radius: 8px;
+      font-weight: bold;
+      transition: all 0.3s;
+    }
+
+    .download-link:hover {
+      background: #764ba2;
+      transform: translateY(-2px);
+    }
+
+    .dictionary-list {
+      max-height: 400px;
+      overflow-y: auto;
+      margin-top: 20px;
+      border: 2px solid #e0e0e0;
+      border-radius: 8px;
+      padding: 15px;
+    }
+
+    .dictionary-item {
+      padding: 12px;
+      border-bottom: 1px solid #f0f0f0;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .dictionary-item:last-child {
+      border-bottom: none;
+    }
+
+    .dictionary-word {
+      flex: 1;
+      display: flex;
+      gap: 15px;
+      align-items: center;
+    }
+
+    .word-original {
+      font-weight: bold;
+      color: #667eea;
+      min-width: 150px;
+    }
+
+    .word-reading {
+      color: #666;
+    }
+
+    .loader {
+      display: none;
+      text-align: center;
+      padding: 20px;
+    }
+
+    .loader.active {
+      display: block;
+    }
+
+    .spinner {
+      border: 4px solid #f3f3f3;
+      border-top: 4px solid #667eea;
+      border-radius: 50%;
+      width: 40px;
+      height: 40px;
+      animation: spin 1s linear infinite;
+      margin: 0 auto;
+    }
+
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+
+    .char-count {
+      text-align: right;
+      color: #999;
+      font-size: 12px;
+      margin-top: 5px;
+    }
+
+    .search-box {
+      margin-bottom: 15px;
+    }
+
+    .stats {
+      background: #f5f5f5;
+      padding: 15px;
+      border-radius: 8px;
+      margin-bottom: 20px;
+      text-align: center;
+    }
+
+    .stats-number {
+      font-size: 32px;
+      font-weight: bold;
+      color: #667eea;
+    }
+
+    .stats-label {
+      color: #666;
+      font-size: 14px;
+      margin-top: 5px;
+    }
+
+    /* モーダル */
+    .modal {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0,0,0,0.5);
+      z-index: 1000;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .modal.active {
+      display: flex;
+    }
+
+    .modal-content {
+      background: white;
+      padding: 30px;
+      border-radius: 15px;
+      max-width: 600px;
+      width: 90%;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+    }
+
+    .modal-header {
+      font-size: 24px;
+      font-weight: bold;
+      margin-bottom: 20px;
+      color: #667eea;
+    }
+
+    .modal-footer {
+      display: flex;
+      gap: 10px;
+      margin-top: 20px;
+      justify-content: flex-end;
+    }
+
+    .info-box {
+      background: #f5f5f5;
+      padding: 15px;
+      border-radius: 8px;
+      margin: 15px 0;
+      font-size: 13px;
+      color: #666;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <!-- ヘッダー -->
+    <div class="header">
+      <h1>🎙️ ナレーション生成アプリ</h1>
+      <p>テキストを入力するだけで、高品質な音声を自動生成</p>
+    </div>
+
+    <!-- ステータスバー -->
+    <div class="status-bar">
+      <div class="status-item">
+        <div class="status-indicator" id="statusIndicator"></div>
+        <span id="statusText">起動中...</span>
+      </div>
+      <div class="status-item">
+        <span id="planText">確認中...</span>
+      </div>
+    </div>
+
+    <!-- 保存先情報 -->
+    <div class="status-bar" style="background: rgba(255,255,255,0.9);">
+      <div style="flex: 1;">
+        <div style="font-size: 12px; color: #999; margin-bottom: 5px;">📁 音声ファイルの保存先</div>
+        <div style="font-size: 14px; color: #333; font-family: monospace;" id="outputPath">読み込み中...</div>
+      </div>
+      <div style="display: flex; gap: 10px;">
+        <button class="btn btn-primary" style="width: auto; padding: 10px 20px; font-size: 14px; background: #4caf50;" onclick="showSettingsModal()">
+          ⚙️ 保存先を変更
+        </button>
+        <button class="btn btn-primary" style="width: auto; padding: 10px 20px; font-size: 14px;" onclick="openFolder()">
+          📂 フォルダを開く
+        </button>
+      </div>
+    </div>
+
+    <!-- タブ -->
+    <div class="tabs">
+      <button class="tab-button active" onclick="switchTab('narration')">音声生成</button>
+      <button class="tab-button" onclick="switchTab('dictionary')">辞書管理</button>
+    </div>
+
+    <!-- 音声生成タブ -->
+    <div id="narration-tab" class="tab-content active">
+      <div class="form-group">
+        <label for="narrationText">ナレーション用テキスト</label>
+        <textarea
+          id="narrationText"
+          placeholder="ここにナレーション用のテキストを入力してください。&#10;&#10;例: こんにちは。これはナレーション生成のテストです。ChatGPTとAIについて説明します。"
+          oninput="updateCharCount()"
+        ></textarea>
+        <div class="char-count" id="charCount">0 文字</div>
+      </div>
+
+      <div class="form-group">
+        <label for="filename">ファイル名（拡張子なし）</label>
+        <input
+          type="text"
+          id="filename"
+          placeholder="例: my_narration"
+          value="narration"
+        >
+      </div>
+
+      <div class="form-group">
+        <label style="display: flex; align-items: center; cursor: pointer; margin-bottom: 15px;">
+          <input type="checkbox" id="enableDenoise" onchange="toggleDenoiseOptions()" style="width: auto; margin-right: 10px;">
+          <span>🔇 ノイズ除去を有効にする</span>
+        </label>
+
+        <div id="denoiseOptions" style="display: none; margin-left: 30px; padding: 15px; background: #f5f5f5; border-radius: 8px;">
+          <div class="form-group" style="margin-bottom: 15px;">
+            <label for="denoiseLevel" style="font-size: 13px;">ノイズ除去レベル</label>
+            <select id="denoiseLevel" style="width: 100%; padding: 10px; border: 2px solid #e0e0e0; border-radius: 8px; font-size: 14px; background: white;">
+              <option value="auto">自動検出（推奨）</option>
+              <option value="light">軽度 - わずかなノイズ</option>
+              <option value="medium">中度 - 一般的なノイズ</option>
+              <option value="strong">強度 - 強いノイズ</option>
+            </select>
+          </div>
+
+          <div class="form-group" style="margin-bottom: 0;">
+            <label style="display: flex; align-items: center; cursor: pointer; font-size: 13px;">
+              <input type="checkbox" id="preserveQuality" checked style="width: auto; margin-right: 8px;">
+              <span>🎵 音質保持モード（高品質優先）</span>
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <button class="btn btn-primary" onclick="generateNarration()" id="generateBtn">
+        🎙️ 音声を生成する
+      </button>
+
+      <div class="loader" id="loader">
+        <div class="spinner"></div>
+        <p style="margin-top: 10px; color: #666;">音声生成中です。しばらくお待ちください...</p>
+      </div>
+
+      <div class="result-box" id="resultBox"></div>
+    </div>
+
+    <!-- 辞書管理タブ -->
+    <div id="dictionary-tab" class="tab-content">
+      <div class="stats">
+        <div class="stats-number" id="dictionaryCount">0</div>
+        <div class="stats-label">登録ワード数</div>
+      </div>
+
+      <div class="form-group">
+        <label for="newWord">新しいワードを追加</label>
+        <input
+          type="text"
+          id="newWord"
+          placeholder="例: ChatGPT"
+        >
+      </div>
+
+      <div class="form-group">
+        <label for="newReading">読み方</label>
+        <input
+          type="text"
+          id="newReading"
+          placeholder="例: チャットジーピーティー"
+        >
+      </div>
+
+      <button class="btn btn-success" onclick="addWord()">
+        ➕ ワードを追加
+      </button>
+
+      <div class="form-group search-box">
+        <label for="searchWord">ワードを検索</label>
+        <input
+          type="text"
+          id="searchWord"
+          placeholder="キーワードを入力..."
+          oninput="filterDictionary()"
+        >
+      </div>
+
+      <div class="dictionary-list" id="dictionaryList">
+        <p style="color: #999; text-align: center;">読み込み中...</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- 保存先設定モーダル -->
+  <div class="modal" id="settingsModal">
+    <div class="modal-content">
+      <div class="modal-header">⚙️ 保存先設定</div>
+
+      <div class="info-box">
+        💡 音声ファイルを保存するフォルダを指定してください。<br>
+        指定したフォルダが存在しない場合は、自動的に作成されます。
+      </div>
+
+      <div class="form-group">
+        <label for="newOutputPath">保存先フォルダのパス</label>
+        <input
+          type="text"
+          id="newOutputPath"
+          placeholder="例: /Users/yourname/Desktop/narrations"
+        >
+      </div>
+
+      <div class="info-box" style="background: #e3f2fd;">
+        📁 現在の保存先: <code id="currentPath" style="background: white; padding: 2px 6px; border-radius: 4px;">-</code>
+      </div>
+
+      <div class="modal-footer">
+        <button class="btn" style="background: #999; color: white; width: auto; padding: 10px 20px;" onclick="hideSettingsModal()">
+          キャンセル
+        </button>
+        <button class="btn btn-primary" style="width: auto; padding: 10px 20px;" onclick="saveOutputPath()">
+          💾 保存
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // 初期化
+    let dictionary = {};
+    let outputPath = '';
+
+    window.onload = async () => {
+      await checkHealth();
+      await loadDictionary();
+    };
+
+    // ヘルスチェック
+    async function checkHealth() {
+      try {
+        const response = await fetch('/api/health');
+        const data = await response.json();
+
+        const indicator = document.getElementById('statusIndicator');
+        const statusText = document.getElementById('statusText');
+        const planText = document.getElementById('planText');
+        const outputPathEl = document.getElementById('outputPath');
+
+        if (data.geminiApiKey) {
+          indicator.classList.remove('error');
+          statusText.textContent = '正常動作中';
+        } else {
+          indicator.classList.add('error');
+          statusText.textContent = 'APIキー未設定';
+        }
+
+        planText.textContent = data.paidTier ? '有料プラン' : '無料プラン';
+
+        // 保存先パスを表示
+        if (data.outputPath) {
+          outputPath = data.outputPath;
+          outputPathEl.textContent = data.outputPath;
+        }
+      } catch (error) {
+        console.error('ヘルスチェックエラー:', error);
+      }
+    }
+
+    // フォルダを開く
+    async function openFolder() {
+      try {
+        const response = await fetch('/api/open-folder', {
+          method: 'POST'
+        });
+
+        const data = await response.json();
+
+        if (response.ok && data.success) {
+          // アラートの代わりに、もっと良いフィードバックを表示
+          console.log('✅ フォルダを開きました:', data.path);
+        } else {
+          alert('❌ フォルダを開けませんでした: ' + (data.error || '不明なエラー'));
+        }
+      } catch (error) {
+        alert('❌ エラー: ' + error.message);
+      }
+    }
+
+    // 保存先設定モーダルを表示
+    function showSettingsModal() {
+      const modal = document.getElementById('settingsModal');
+      const newOutputPath = document.getElementById('newOutputPath');
+      const currentPath = document.getElementById('currentPath');
+
+      newOutputPath.value = outputPath;
+      currentPath.textContent = outputPath;
+
+      modal.classList.add('active');
+    }
+
+    // 保存先設定モーダルを非表示
+    function hideSettingsModal() {
+      const modal = document.getElementById('settingsModal');
+      modal.classList.remove('active');
+    }
+
+    // 保存先を保存
+    async function saveOutputPath() {
+      const newPath = document.getElementById('newOutputPath').value.trim();
+
+      if (!newPath) {
+        alert('❌ 保存先パスを入力してください');
+        return;
+      }
+
+      try {
+        const response = await fetch('/api/settings', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ outputPath: newPath })
+        });
+
+        const data = await response.json();
+
+        if (response.ok && data.success) {
+          outputPath = data.outputPath;
+          document.getElementById('outputPath').textContent = data.outputPath;
+          hideSettingsModal();
+          alert('✅ 保存先を変更しました\n\n新しい保存先: ' + data.outputPath);
+        } else {
+          throw new Error(data.error);
+        }
+      } catch (error) {
+        alert('❌ エラー: ' + error.message);
+      }
+    }
+
+    // タブ切り替え
+    function switchTab(tabName) {
+      // タブボタンの切り替え
+      document.querySelectorAll('.tab-button').forEach(btn => {
+        btn.classList.remove('active');
+      });
+      event.target.classList.add('active');
+
+      // タブコンテンツの切り替え
+      document.querySelectorAll('.tab-content').forEach(content => {
+        content.classList.remove('active');
+      });
+      document.getElementById(tabName + '-tab').classList.add('active');
+
+      if (tabName === 'dictionary') {
+        loadDictionary();
+      }
+    }
+
+    // 文字数カウント
+    function updateCharCount() {
+      const text = document.getElementById('narrationText').value;
+      document.getElementById('charCount').textContent = text.length + ' 文字';
+    }
+
+    // ナレーション生成
+    function toggleDenoiseOptions() {
+      const enableDenoise = document.getElementById('enableDenoise').checked;
+      const denoiseOptions = document.getElementById('denoiseOptions');
+      denoiseOptions.style.display = enableDenoise ? 'block' : 'none';
+    }
+
+    async function generateNarration() {
+      const text = document.getElementById('narrationText').value.trim();
+      const filename = document.getElementById('filename').value.trim();
+      const enableDenoise = document.getElementById('enableDenoise').checked;
+      const denoiseLevel = document.getElementById('denoiseLevel').value;
+      const preserveQuality = document.getElementById('preserveQuality').checked;
+      const resultBox = document.getElementById('resultBox');
+      const loader = document.getElementById('loader');
+      const generateBtn = document.getElementById('generateBtn');
+
+      if (!text) {
+        resultBox.className = 'result-box error';
+        resultBox.innerHTML = '❌ テキストを入力してください';
+        return;
+      }
+
+      // ローディング表示
+      loader.classList.add('active');
+      generateBtn.disabled = true;
+      resultBox.style.display = 'none';
+
+      try {
+        const requestBody = {
+          text,
+          filename: filename || 'narration',
+          denoise: enableDenoise,
+          denoiseLevel: enableDenoise ? denoiseLevel : undefined,
+          preserveQuality: enableDenoise ? preserveQuality : undefined
+        };
+
+        const response = await fetch('/api/generate-narration', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(requestBody)
+        });
+
+        const data = await response.json();
+
+        if (response.ok && data.success) {
+          resultBox.className = 'result-box success';
+          resultBox.innerHTML = `
+            <h3>✅ 音声生成完了！</h3>
+            <p>ファイル名: <strong>${data.filename}</strong></p>
+            <p>文字数: <strong>${data.textLength}</strong> 文字</p>
+            <p>ファイルサイズ: <strong>${data.fileSize}</strong> KB</p>
+            ${data.verified ? '<p style="color: #4caf50;">✅ ファイルの保存を確認しました</p>' : '<p style="color: #f44336;">⚠️ ファイルの保存を確認できませんでした</p>'}
+            <p style="font-size: 12px; color: #666; margin-top: 10px;">
+              💾 保存先: <code style="background: #f5f5f5; padding: 2px 6px; border-radius: 4px;">${data.filePath}</code>
+            </p>
+            <a href="${data.downloadUrl}" class="download-link" download>
+              ⬇️ 音声をダウンロード
+            </a>
+          `;
+        } else {
+          throw new Error(data.error || '音声生成に失敗しました');
+        }
+      } catch (error) {
+        resultBox.className = 'result-box error';
+        resultBox.innerHTML = `❌ エラー: ${error.message}`;
+      } finally {
+        loader.classList.remove('active');
+        generateBtn.disabled = false;
+      }
+    }
+
+    // 辞書読み込み
+    async function loadDictionary() {
+      try {
+        const response = await fetch('/api/dictionary');
+        const data = await response.json();
+        dictionary = data.replacements || {};
+        renderDictionary();
+        updateDictionaryCount();
+      } catch (error) {
+        console.error('辞書読み込みエラー:', error);
+      }
+    }
+
+    // 辞書表示
+    function renderDictionary(filterKeyword = '') {
+      const list = document.getElementById('dictionaryList');
+      const entries = Object.entries(dictionary);
+
+      if (entries.length === 0) {
+        list.innerHTML = '<p style="color: #999; text-align: center;">登録されているワードはありません</p>';
+        return;
+      }
+
+      let filtered = entries;
+      if (filterKeyword) {
+        filtered = entries.filter(([word, reading]) =>
+          word.toLowerCase().includes(filterKeyword.toLowerCase()) ||
+          reading.includes(filterKeyword)
+        );
+      }
+
+      if (filtered.length === 0) {
+        list.innerHTML = '<p style="color: #999; text-align: center;">該当するワードが見つかりません</p>';
+        return;
+      }
+
+      list.innerHTML = filtered.map(([word, reading]) => `
+        <div class="dictionary-item">
+          <div class="dictionary-word">
+            <div class="word-original">${word}</div>
+            <div class="word-reading">→ ${reading}</div>
+          </div>
+          <button class="btn btn-danger" onclick="deleteWord('${word}')">削除</button>
+        </div>
+      `).join('');
+    }
+
+    // 辞書フィルター
+    function filterDictionary() {
+      const keyword = document.getElementById('searchWord').value;
+      renderDictionary(keyword);
+    }
+
+    // ワード数更新
+    function updateDictionaryCount() {
+      document.getElementById('dictionaryCount').textContent = Object.keys(dictionary).length;
+    }
+
+    // ワード追加
+    async function addWord() {
+      const word = document.getElementById('newWord').value.trim();
+      const reading = document.getElementById('newReading').value.trim();
+
+      if (!word || !reading) {
+        alert('ワードと読み方を両方入力してください');
+        return;
+      }
+
+      if (dictionary[word]) {
+        if (!confirm(`"${word}" は既に登録されています。上書きしますか？`)) {
+          return;
+        }
+      }
+
+      try {
+        const response = await fetch('/api/dictionary/add', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ word, reading })
+        });
+
+        const data = await response.json();
+
+        if (response.ok && data.success) {
+          dictionary[word] = reading;
+          renderDictionary();
+          updateDictionaryCount();
+          document.getElementById('newWord').value = '';
+          document.getElementById('newReading').value = '';
+          alert(`✅ "${word}" を追加しました`);
+        } else {
+          throw new Error(data.error);
+        }
+      } catch (error) {
+        alert('❌ エラー: ' + error.message);
+      }
+    }
+
+    // ワード削除
+    async function deleteWord(word) {
+      if (!confirm(`"${word}" を削除しますか？`)) {
+        return;
+      }
+
+      try {
+        const response = await fetch(`/api/dictionary/${encodeURIComponent(word)}`, {
+          method: 'DELETE'
+        });
+
+        const data = await response.json();
+
+        if (response.ok && data.success) {
+          delete dictionary[word];
+          renderDictionary();
+          updateDictionaryCount();
+          alert(`✅ "${word}" を削除しました`);
+        } else {
+          throw new Error(data.error);
+        }
+      } catch (error) {
+        alert('❌ エラー: ' + error.message);
+      }
+    }
+  </script>
+</body>
+</html>
