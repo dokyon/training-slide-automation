@@ -10,14 +10,17 @@ WORKDIR /app
 # package.jsonとpackage-lock.jsonをコピー
 COPY package*.json ./
 
-# 依存関係のインストール
-RUN npm ci --only=production
+# 依存関係のインストール（ビルドに必要なdevDependenciesも含む）
+RUN npm ci
 
 # アプリケーションのソースコードをコピー
 COPY . .
 
 # TypeScriptのビルド
 RUN npm run build
+
+# 本番用依存関係のみをクリーンインストール
+RUN npm prune --omit=dev
 
 # 出力ディレクトリの作成
 RUN mkdir -p /app/output/narration
