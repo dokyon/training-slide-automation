@@ -11,7 +11,7 @@ WORKDIR /app
 COPY package*.json ./
 
 # 依存関係のインストール（ビルドに必要なdevDependenciesも含む）
-RUN npm ci
+RUN npm install
 
 # アプリケーションのソースコードをコピー
 COPY . .
