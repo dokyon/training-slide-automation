@@ -19,9 +19,6 @@ COPY . .
 # TypeScriptのビルド
 RUN npm run build
 
-# 本番用依存関係のみをクリーンインストール
-RUN npm prune --omit=dev
-
 # 出力ディレクトリの作成
 RUN mkdir -p /app/output/narration
 
