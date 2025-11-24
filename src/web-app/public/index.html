@@ -735,12 +735,14 @@
               ⬇️ 音声をダウンロード
             </a>
           `;
+          resultBox.style.display = 'block';
         } else {
           throw new Error(data.error || '音声生成に失敗しました');
         }
       } catch (error) {
         resultBox.className = 'result-box error';
         resultBox.innerHTML = `❌ エラー: ${error.message}`;
+        resultBox.style.display = 'block';
       } finally {
         loader.classList.remove('active');
         generateBtn.disabled = false;
