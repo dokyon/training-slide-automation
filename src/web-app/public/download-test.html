@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ダウンロード機能テスト</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Yu Gothic', 'Hiragino Kaku Gothic ProN', 'Meiryo', sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      padding: 40px 20px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .container {
+      max-width: 600px;
+      background: white;
+      padding: 40px;
+      border-radius: 15px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+    }
+
+    h1 {
+      color: #667eea;
+      margin-bottom: 30px;
+      text-align: center;
+    }
+
+    .info-box {
+      background: #f5f5f5;
+      padding: 20px;
+      border-radius: 8px;
+      margin-bottom: 30px;
+      line-height: 1.6;
+    }
+
+    .download-link {
+      display: inline-block;
+      margin: 10px;
+      padding: 15px 30px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      text-decoration: none;
+      border-radius: 8px;
+      font-weight: bold;
+      cursor: pointer;
+      border: none;
+      font-size: 16px;
+      transition: transform 0.3s, box-shadow 0.3s;
+    }
+
+    .download-link:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 7px 20px rgba(102, 126, 234, 0.4);
+    }
+
+    .result {
+      margin-top: 20px;
+      padding: 15px;
+      border-radius: 8px;
+      background: #e8f5e9;
+      border: 2px solid #4caf50;
+      display: none;
+    }
+
+    .result.show {
+      display: block;
+    }
+
+    .button-group {
+      text-align: center;
+      margin-top: 30px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🎙️ ダウンロード機能テスト</h1>
+
+    <div class="info-box">
+      <p><strong>このページの目的：</strong></p>
+      <p>既存のMP3ファイルを使って、ブラウザのデフォルトダウンロード機能をテストします。</p>
+      <br>
+      <p><strong>期待される動作：</strong></p>
+      <p>ボタンをクリックすると、ブラウザの右上のダウンロードバーにMP3ファイルが表示されます。</p>
+    </div>
+
+    <div class="button-group">
+      <button id="download-btn-1" class="download-link" data-url="/output/narration/quick_test.mp3" data-filename="quick_test.mp3">
+        ⬇️ テスト1: quick_test.mp3
+      </button>
+      <br>
+      <button id="download-btn-2" class="download-link" data-url="/output/narration/intro_test.mp3" data-filename="intro_test.mp3">
+        ⬇️ テスト2: intro_test.mp3
+      </button>
+    </div>
+
+    <div class="result" id="result"></div>
+  </div>
+
+  <script>
+    // 音声をダウンロード（ブラウザのデフォルトダウンロード）
+    async function downloadAudio(url, filename) {
+      const resultDiv = document.getElementById('result');
+
+      try {
+        console.log('📥 ダウンロード開始:', url, filename);
+        resultDiv.textContent = `📥 ダウンロード中: ${filename}...`;
+        resultDiv.classList.add('show');
+
+        // URLからMP3ファイルを取得
+        const response = await fetch(url);
+        console.log('✅ Fetch response:', response.status, response.statusText);
+
+        if (!response.ok) {
+          throw new Error(`ファイルのダウンロードに失敗しました (${response.status})`);
+        }
+
+        // Blobとして取得
+        const blob = await response.blob();
+        console.log('✅ Blob size:', blob.size, 'bytes, type:', blob.type);
+
+        // Blob URLを作成
+        const blobUrl = URL.createObjectURL(blob);
+        console.log('✅ Blob URL created:', blobUrl);
+
+        // ダウンロード用のリンクを作成
+        const a = document.createElement('a');
+        a.href = blobUrl;
+        a.download = filename.endsWith('.mp3') ? filename : `${filename}.mp3`;
+
+        // DOMに追加してクリック
+        document.body.appendChild(a);
+        a.click();
+
+        // クリーンアップ
+        document.body.removeChild(a);
+        URL.revokeObjectURL(blobUrl);
+
+        console.log('✅ ダウンロード完了:', filename);
+        resultDiv.textContent = `✅ ダウンロード成功！\n\nブラウザの右上のダウンロードバーを確認してください。\nファイル名: ${filename}`;
+      } catch (error) {
+        console.error('❌ ダウンロードエラー:', error);
+        resultDiv.style.background = '#ffebee';
+        resultDiv.style.borderColor = '#f44336';
+        resultDiv.textContent = `❌ ダウンロードエラー: ${error.message}`;
+        resultDiv.classList.add('show');
+      }
+    }
+
+    // ボタンにイベントリスナーを追加
+    document.getElementById('download-btn-1').addEventListener('click', function() {
+      const url = this.getAttribute('data-url');
+      const filename = this.getAttribute('data-filename');
+      downloadAudio(url, filename);
+    });
+
+    document.getElementById('download-btn-2').addEventListener('click', function() {
+      const url = this.getAttribute('data-url');
+      const filename = this.getAttribute('data-filename');
+      downloadAudio(url, filename);
+    });
+  </script>
+</body>
+</html>
