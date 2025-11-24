@@ -147,7 +147,7 @@ export class AudioDenoiser {
 
         // クリック・ポップ音除去
         if (noiseType === NoiseType.CLICK_POP || noiseType === NoiseType.MIXED) {
-          filters.push('adeclick=t=0.001');
+          filters.push('adeclick=t=1');
           filters.push('adeclip');
         }
         break;
@@ -160,7 +160,7 @@ export class AudioDenoiser {
         filters.push('anlmdn=s=0.001:p=0.002:r=0.002:m=15');  // 適応型ノイズ除去
 
         // クリック・ポップ音除去
-        filters.push('adeclick=t=0.001');
+        filters.push('adeclick=t=1');
         filters.push('adeclip');
 
         // ホワイトノイズ除去

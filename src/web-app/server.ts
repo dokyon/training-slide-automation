@@ -123,7 +123,7 @@ app.post('/api/generate-narration', async (req, res) => {
     res.json({
       success: true,
       filename: outputFilename,
-      downloadUrl: `/output/narration/${outputFilename}`,
+      downloadUrl: `/api/download/${outputFilename}`,
       textLength: text.length,
       fileSize: fileSizeKB,
       filePath: fullPath,
@@ -287,6 +287,33 @@ app.post('/api/open-folder', async (req, res) => {
     console.error('❌ フォルダを開くエラー:', error);
     res.status(500).json({
       error: error instanceof Error ? error.message : 'フォルダを開けませんでした'
+    });
+  }
+});
+
+/**
+ * ファイルダウンロードAPI（ブラウザのダウンロードバーを表示）
+ */
+app.get('/api/download/:filename', (req, res) => {
+  try {
+    const { filename } = req.params;
+    const filePath = path.join(currentSettings.outputPath, filename);
+
+    // ファイルの存在確認
+    if (!existsSync(filePath)) {
+      return res.status(404).json({ error: 'ファイルが見つかりません' });
+    }
+
+    // Content-Dispositionヘッダーを設定してブラウザのダウンロード機能を使用
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.setHeader('Content-Type', 'audio/mpeg');
+
+    // ファイルを送信
+    res.sendFile(filePath);
+  } catch (error) {
+    console.error('❌ ダウンロードエラー:', error);
+    res.status(500).json({
+      error: error instanceof Error ? error.message : 'ダウンロードに失敗しました'
     });
   }
 });
