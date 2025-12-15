@@ -163,10 +163,11 @@ export class NarrationGeneratorAgent {
   }
 
   /**
-   * テキストを適切な長さに分割（500文字以上の場合）
-   * 句点（。）で自然に分割し、各チャンクを200-600文字程度に保つ
+   * テキストを適切な長さに分割
+   * Gemini TTS制限: 約1000-1500文字（750語）が上限
+   * 句点（。）で自然に分割し、各チャンクを800-1000文字程度に保つ
    */
-  private splitTextIntoChunks(text: string, maxChunkSize: number = 600): string[] {
+  private splitTextIntoChunks(text: string, maxChunkSize: number = 1000): string[] {
     // 短いテキストはそのまま返す
     if (text.length <= maxChunkSize) {
       return [text];
@@ -484,7 +485,7 @@ export class NarrationGeneratorAgent {
 
   /**
    * 単一テキストから音声を生成
-   * テキストを分割せず一度に生成し、速度を補正します
+   * Gemini TTS制限（約1000文字）を考慮して自動的に分割
    */
   async generateFromText(
     text: string,
@@ -494,31 +495,61 @@ export class NarrationGeneratorAgent {
     const processedText = this.applyDictionary(text);
 
     console.log(`🎙️  Generating audio from text (${processedText.length} chars)...`);
-    console.log(`📋 Generating without splitting for consistent voice quality`);
+
+    // Gemini TTS制限を考慮して分割（1000文字チャンク）
+    const chunks = this.splitTextIntoChunks(processedText, 1000);
+
+    if (chunks.length > 1) {
+      console.log(`📋 Text split into ${chunks.length} chunks (Gemini TTS limit: ~1000 chars)`);
+    }
 
     const filepath = path.join(this.outputDir, filename);
-    const tempRawPath = filepath.replace('.mp3', '_raw.mp3');
+    const tempFiles: string[] = [];
 
     try {
-      // 一度に音声を生成
-      const base64PcmData = await this.generateAudioChunk(processedText);
+      // 各チャンクで音声を生成
+      for (let i = 0; i < chunks.length; i++) {
+        const chunk = chunks[i];
+        console.log(`  🎤 Generating chunk ${i + 1}/${chunks.length} (${chunk.length} chars)...`);
 
-      // まず生のMP3を生成
-      await this.pcmToMp3(base64PcmData, tempRawPath);
+        const base64PcmData = await this.generateAudioChunk(chunk);
+        const tempFilename = `${filename.replace('.mp3', '')}_chunk_${i}.mp3`;
+        const tempFilepath = path.join(this.outputDir, tempFilename);
 
-      // 速度を正規化
-      await this.normalizeAudioSpeed(tempRawPath, filepath);
+        // PCMをMP3に変換
+        await this.pcmToMp3(base64PcmData, tempFilepath);
 
-      // 一時ファイルを削除
-      await execAsync(`rm "${tempRawPath}"`);
+        // 速度を正規化
+        const normalizedPath = tempFilepath.replace('.mp3', '_normalized.mp3');
+        await this.normalizeAudioSpeed(tempFilepath, normalizedPath);
+        await execAsync(`rm "${tempFilepath}"`);
+
+        tempFiles.push(normalizedPath);
+
+        // レート制限を考慮して待機（複数チャンクの場合）
+        if (i < chunks.length - 1) {
+          await new Promise(resolve => setTimeout(resolve, this.rateLimitMs));
+        }
+      }
+
+      // 複数チャンクの場合は結合
+      if (tempFiles.length > 1) {
+        console.log(`  🔗 Concatenating ${tempFiles.length} audio chunks...`);
+        await this.concatenateAudioFiles(tempFiles, filepath);
+      } else if (tempFiles.length === 1) {
+        // 1チャンクの場合はリネーム
+        await execAsync(`mv "${tempFiles[0]}" "${filepath}"`);
+      }
 
       console.log(`✅ Audio saved: ${filepath}`);
 
     } catch (error) {
       // エラー時は一時ファイルをクリーンアップ
-      try {
-        await execAsync(`rm "${tempRawPath}"`);
-      } catch {}
+      for (const tempFile of tempFiles) {
+        try {
+          await execAsync(`rm "${tempFile}"`);
+        } catch {}
+      }
       throw error;
     }
   }
