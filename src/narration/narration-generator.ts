@@ -163,6 +163,71 @@ export class NarrationGeneratorAgent {
   }
 
   /**
+   * テキストを適切な長さに分割（500文字以上の場合）
+   * 句点（。）で自然に分割し、各チャンクを200-400文字程度に保つ
+   */
+  private splitTextIntoChunks(text: string, maxChunkSize: number = 400): string[] {
+    // 短いテキストはそのまま返す
+    if (text.length <= maxChunkSize) {
+      return [text];
+    }
+
+    const chunks: string[] = [];
+    const sentences = text.split(/(?<=[。！？\n])/); // 句点、感嘆符、疑問符、改行で分割
+
+    let currentChunk = '';
+
+    for (const sentence of sentences) {
+      // 現在のチャンクに追加しても maxChunkSize を超えない場合
+      if ((currentChunk + sentence).length <= maxChunkSize) {
+        currentChunk += sentence;
+      } else {
+        // 現在のチャンクを保存
+        if (currentChunk) {
+          chunks.push(currentChunk.trim());
+        }
+        // 新しいチャンクを開始
+        currentChunk = sentence;
+      }
+    }
+
+    // 最後のチャンクを追加
+    if (currentChunk) {
+      chunks.push(currentChunk.trim());
+    }
+
+    return chunks.filter(chunk => chunk.length > 0);
+  }
+
+  /**
+   * 複数のMP3ファイルを結合
+   */
+  private async concatenateAudioFiles(inputFiles: string[], outputPath: string): Promise<void> {
+    // FFmpegの concat demuxer用のファイルリストを作成
+    const fileListPath = outputPath.replace('.mp3', '_filelist.txt');
+    const fileListContent = inputFiles.map(file => `file '${file}'`).join('\n');
+    await writeFile(fileListPath, fileListContent, 'utf-8');
+
+    try {
+      // FFmpegで結合
+      const concatCmd = `ffmpeg -f concat -safe 0 -i "${fileListPath}" -c copy -y "${outputPath}"`;
+      await execAsync(concatCmd);
+
+      // 一時ファイルを削除
+      await execAsync(`rm "${fileListPath}"`);
+      for (const file of inputFiles) {
+        await execAsync(`rm "${file}"`);
+      }
+    } catch (error) {
+      // エラー時もクリーンアップ
+      try {
+        await execAsync(`rm "${fileListPath}"`);
+      } catch {}
+      throw error;
+    }
+  }
+
+  /**
    * PCMデータをMP3に変換（ffmpeg使用）
    * @param base64PcmData Base64エンコードされたPCMデータ
    * @param outputPath 出力MP3ファイルパス
@@ -350,20 +415,12 @@ export class NarrationGeneratorAgent {
   }
 
   /**
-   * 単一テキストから音声を生成（テスト用）
+   * 単一チャンクから音声を生成（内部用）
    */
-  async generateFromText(
-    text: string,
-    filename: string = 'test_narration.mp3'
-  ): Promise<void> {
-    await this.loadDictionary();
-    const processedText = this.applyDictionary(text);
-
-    console.log(`🎙️  Generating audio from text (${processedText.length} chars)...`);
-
+  private async generateAudioChunk(text: string): Promise<string> {
     const response = await this.ai.models.generateContent({
       model: this.ttsModel,
-      contents: processedText,
+      contents: text,
       config: {
         responseModalities: ['AUDIO'],
         speechConfig: {
@@ -383,11 +440,70 @@ export class NarrationGeneratorAgent {
       throw new Error('No audio data returned from Gemini API');
     }
 
-    const base64PcmData = audioPart.inlineData.data;
+    return audioPart.inlineData.data;
+  }
+
+  /**
+   * 単一テキストから音声を生成
+   * 長いテキスト（400文字以上）は自動的に分割して生成し、結合します
+   */
+  async generateFromText(
+    text: string,
+    filename: string = 'test_narration.mp3'
+  ): Promise<void> {
+    await this.loadDictionary();
+    const processedText = this.applyDictionary(text);
+
+    console.log(`🎙️  Generating audio from text (${processedText.length} chars)...`);
+
+    // テキストを分割
+    const chunks = this.splitTextIntoChunks(processedText, 400);
+
+    if (chunks.length > 1) {
+      console.log(`📋 Text split into ${chunks.length} chunks to ensure consistent speed`);
+    }
+
     const filepath = path.join(this.outputDir, filename);
+    const tempFiles: string[] = [];
 
-    await this.pcmToMp3(base64PcmData, filepath);
+    try {
+      // 各チャンクで音声を生成
+      for (let i = 0; i < chunks.length; i++) {
+        const chunk = chunks[i];
+        console.log(`  🎤 Generating chunk ${i + 1}/${chunks.length} (${chunk.length} chars)...`);
 
-    console.log(`✅ Audio saved: ${filepath}`);
+        const base64PcmData = await this.generateAudioChunk(chunk);
+        const tempFilename = `${filename.replace('.mp3', '')}_chunk_${i}.mp3`;
+        const tempFilepath = path.join(this.outputDir, tempFilename);
+
+        await this.pcmToMp3(base64PcmData, tempFilepath);
+        tempFiles.push(tempFilepath);
+
+        // レート制限を考慮して待機（複数チャンクの場合）
+        if (i < chunks.length - 1) {
+          await new Promise(resolve => setTimeout(resolve, this.rateLimitMs));
+        }
+      }
+
+      // 複数チャンクの場合は結合
+      if (tempFiles.length > 1) {
+        console.log(`  🔗 Concatenating ${tempFiles.length} audio chunks...`);
+        await this.concatenateAudioFiles(tempFiles, filepath);
+      } else if (tempFiles.length === 1) {
+        // 1チャンクの場合はリネーム
+        await execAsync(`mv "${tempFiles[0]}" "${filepath}"`);
+      }
+
+      console.log(`✅ Audio saved: ${filepath}`);
+
+    } catch (error) {
+      // エラー時は一時ファイルをクリーンアップ
+      for (const tempFile of tempFiles) {
+        try {
+          await execAsync(`rm "${tempFile}"`);
+        } catch {}
+      }
+      throw error;
+    }
   }
 }
