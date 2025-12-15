@@ -200,79 +200,31 @@ export class NarrationGeneratorAgent {
   }
 
   /**
-   * 音声ファイルを正規化（音量・トーンを統一）
-   * シンプルな音量正規化のみで高速化
-   */
-  private async normalizeAudio(inputPath: string, outputPath: string): Promise<void> {
-    // 音量正規化のみ（EQは省略して高速化）
-    const normalizeCmd = `ffmpeg -i "${inputPath}" -af "loudnorm=I=-16:TP=-1.5" -ar 24000 -ac 1 -b:a 128k -y "${outputPath}"`;
-
-    await execAsync(normalizeCmd);
-  }
-
-  /**
-   * 複数のMP3ファイルを正規化して結合
+   * 複数のMP3ファイルをシンプルに結合（正規化なし）
    */
   private async concatenateAudioFiles(inputFiles: string[], outputPath: string): Promise<void> {
-    const normalizedFiles: string[] = [];
+    // FFmpegの concat demuxer用のファイルリストを作成
+    const fileListPath = outputPath.replace('.mp3', '_filelist.txt');
+    const fileListContent = inputFiles.map(file => `file '${file}'`).join('\n');
+    await writeFile(fileListPath, fileListContent, 'utf-8');
 
     try {
-      // 各ファイルを正規化
-      console.log(`  🎚️  Normalizing ${inputFiles.length} audio chunks for consistent voice quality...`);
+      console.log(`  🔗 Concatenating ${inputFiles.length} audio chunks...`);
 
-      for (let i = 0; i < inputFiles.length; i++) {
-        const inputFile = inputFiles[i];
-        const normalizedFile = inputFile.replace('.mp3', '_normalized.mp3');
+      // シンプルにコピーで結合（音質劣化なし、高速）
+      const concatCmd = `ffmpeg -f concat -safe 0 -i "${fileListPath}" -c copy -y "${outputPath}"`;
+      await execAsync(concatCmd);
 
-        await this.normalizeAudio(inputFile, normalizedFile);
-        normalizedFiles.push(normalizedFile);
-
-        // 元のファイルを削除
-        await execAsync(`rm "${inputFile}"`);
+      // 一時ファイルを削除
+      await execAsync(`rm "${fileListPath}"`);
+      for (const file of inputFiles) {
+        await execAsync(`rm "${file}"`);
       }
-
-      // クロスフェードを使って滑らかに結合
-      if (normalizedFiles.length === 1) {
-        // 1ファイルの場合はそのまま移動
-        await execAsync(`mv "${normalizedFiles[0]}" "${outputPath}"`);
-      } else {
-        // 複数ファイルの場合はクロスフェードで結合
-        console.log(`  🔗 Concatenating with crossfade for seamless transitions...`);
-
-        let currentFile = normalizedFiles[0];
-
-        for (let i = 1; i < normalizedFiles.length; i++) {
-          const nextFile = normalizedFiles[i];
-          const tempOutput = outputPath.replace('.mp3', `_merge_${i}.mp3`);
-
-          // 0.3秒のクロスフェード
-          const crossfadeCmd = `ffmpeg -i "${currentFile}" -i "${nextFile}" -filter_complex "[0][1]acrossfade=d=0.3:c1=tri:c2=tri" -y "${tempOutput}"`;
-
-          await execAsync(crossfadeCmd);
-
-          // 前のファイルを削除
-          if (i > 1) {
-            await execAsync(`rm "${currentFile}"`);
-          }
-          await execAsync(`rm "${normalizedFiles[i]}"`);
-
-          currentFile = tempOutput;
-        }
-
-        // 最初のファイルを削除
-        await execAsync(`rm "${normalizedFiles[0]}"`);
-
-        // 最終的なファイルをリネーム
-        await execAsync(`mv "${currentFile}" "${outputPath}"`);
-      }
-
     } catch (error) {
-      // エラー時のクリーンアップ
-      for (const file of normalizedFiles) {
-        try {
-          await execAsync(`rm "${file}"`);
-        } catch {}
-      }
+      // エラー時もクリーンアップ
+      try {
+        await execAsync(`rm "${fileListPath}"`);
+      } catch {}
       throw error;
     }
   }
