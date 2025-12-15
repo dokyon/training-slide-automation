@@ -469,8 +469,22 @@ export class NarrationGeneratorAgent {
   }
 
   /**
+   * 音声の速度を正規化（一定速度に補正）
+   * 高品質なatempoフィルタを使用
+   */
+  private async normalizeAudioSpeed(inputPath: string, outputPath: string): Promise<void> {
+    console.log(`  🎵 Normalizing audio speed for consistent playback...`);
+
+    // atempoフィルタで速度を0.95倍に調整（速い部分を少し遅くする）
+    // 音質を保ちつつ、わずかに減速することで安定した速度に
+    const normalizeCmd = `ffmpeg -i "${inputPath}" -af "atempo=0.95" -ar 24000 -ac 1 -b:a 128k -y "${outputPath}"`;
+
+    await execAsync(normalizeCmd);
+  }
+
+  /**
    * 単一テキストから音声を生成
-   * 長いテキスト（400文字以上）は自動的に分割して生成し、結合します
+   * テキストを分割せず一度に生成し、速度を補正します
    */
   async generateFromText(
     text: string,
@@ -480,54 +494,31 @@ export class NarrationGeneratorAgent {
     const processedText = this.applyDictionary(text);
 
     console.log(`🎙️  Generating audio from text (${processedText.length} chars)...`);
-
-    // テキストを分割（600文字チャンクで処理時間を短縮）
-    const chunks = this.splitTextIntoChunks(processedText, 600);
-
-    if (chunks.length > 1) {
-      console.log(`📋 Text split into ${chunks.length} chunks to ensure consistent speed`);
-    }
+    console.log(`📋 Generating without splitting for consistent voice quality`);
 
     const filepath = path.join(this.outputDir, filename);
-    const tempFiles: string[] = [];
+    const tempRawPath = filepath.replace('.mp3', '_raw.mp3');
 
     try {
-      // 各チャンクで音声を生成
-      for (let i = 0; i < chunks.length; i++) {
-        const chunk = chunks[i];
-        console.log(`  🎤 Generating chunk ${i + 1}/${chunks.length} (${chunk.length} chars)...`);
+      // 一度に音声を生成
+      const base64PcmData = await this.generateAudioChunk(processedText);
 
-        const base64PcmData = await this.generateAudioChunk(chunk);
-        const tempFilename = `${filename.replace('.mp3', '')}_chunk_${i}.mp3`;
-        const tempFilepath = path.join(this.outputDir, tempFilename);
+      // まず生のMP3を生成
+      await this.pcmToMp3(base64PcmData, tempRawPath);
 
-        await this.pcmToMp3(base64PcmData, tempFilepath);
-        tempFiles.push(tempFilepath);
+      // 速度を正規化
+      await this.normalizeAudioSpeed(tempRawPath, filepath);
 
-        // レート制限を考慮して待機（複数チャンクの場合）
-        if (i < chunks.length - 1) {
-          await new Promise(resolve => setTimeout(resolve, this.rateLimitMs));
-        }
-      }
-
-      // 複数チャンクの場合は結合
-      if (tempFiles.length > 1) {
-        console.log(`  🔗 Concatenating ${tempFiles.length} audio chunks...`);
-        await this.concatenateAudioFiles(tempFiles, filepath);
-      } else if (tempFiles.length === 1) {
-        // 1チャンクの場合はリネーム
-        await execAsync(`mv "${tempFiles[0]}" "${filepath}"`);
-      }
+      // 一時ファイルを削除
+      await execAsync(`rm "${tempRawPath}"`);
 
       console.log(`✅ Audio saved: ${filepath}`);
 
     } catch (error) {
       // エラー時は一時ファイルをクリーンアップ
-      for (const tempFile of tempFiles) {
-        try {
-          await execAsync(`rm "${tempFile}"`);
-        } catch {}
-      }
+      try {
+        await execAsync(`rm "${tempRawPath}"`);
+      } catch {}
       throw error;
     }
   }
