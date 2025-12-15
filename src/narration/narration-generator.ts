@@ -470,15 +470,24 @@ export class NarrationGeneratorAgent {
   }
 
   /**
-   * 音声の速度を正規化（一定速度に補正）
-   * 高品質なatempoフィルタを使用
+   * 音声の速度・声質・トーンを統一
+   * 高品質なフィルタを使用し、音質劣化を最小限に抑える
    */
-  private async normalizeAudioSpeed(inputPath: string, outputPath: string): Promise<void> {
-    console.log(`  🎵 Normalizing audio speed for consistent playback...`);
+  private async normalizeAudioCharacteristics(inputPath: string, outputPath: string): Promise<void> {
+    console.log(`  🎵 Normalizing speed, voice quality, and tone...`);
 
-    // atempoフィルタで速度を0.95倍に調整（速い部分を少し遅くする）
-    // 音質を保ちつつ、わずかに減速することで安定した速度に
-    const normalizeCmd = `ffmpeg -i "${inputPath}" -af "atempo=0.95" -ar 24000 -ac 1 -b:a 128k -y "${outputPath}"`;
+    // 複数のフィルタを組み合わせて声質を統一
+    // 1. atempo=0.95: 速度を少し遅くして安定化
+    // 2. dynaudnorm: 動的音量正規化（loudnormより自然、こもらない）
+    // 3. highpass/lowpass: 軽いフィルタリングでトーンを統一
+    const filters = [
+      'atempo=0.95',                          // 速度を0.95倍に
+      'dynaudnorm=f=75:g=3:p=0.9:s=5',       // 動的音量正規化（自然）
+      'highpass=f=80',                        // 80Hz以下の低音ノイズをカット
+      'lowpass=f=12000',                      // 12kHz以上の高音ノイズをカット
+    ].join(',');
+
+    const normalizeCmd = `ffmpeg -i "${inputPath}" -af "${filters}" -ar 24000 -ac 1 -b:a 128k -y "${outputPath}"`;
 
     await execAsync(normalizeCmd);
   }
@@ -519,9 +528,9 @@ export class NarrationGeneratorAgent {
         // PCMをMP3に変換
         await this.pcmToMp3(base64PcmData, tempFilepath);
 
-        // 速度を正規化
+        // 速度・声質・トーンを統一
         const normalizedPath = tempFilepath.replace('.mp3', '_normalized.mp3');
-        await this.normalizeAudioSpeed(tempFilepath, normalizedPath);
+        await this.normalizeAudioCharacteristics(tempFilepath, normalizedPath);
         await execAsync(`rm "${tempFilepath}"`);
 
         tempFiles.push(normalizedPath);
