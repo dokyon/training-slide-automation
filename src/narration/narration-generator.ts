@@ -418,31 +418,54 @@ export class NarrationGeneratorAgent {
 
   /**
    * 単一チャンクから音声を生成（内部用）
+   * リトライ機能付き
    */
-  private async generateAudioChunk(text: string): Promise<string> {
-    const response = await this.ai.models.generateContent({
-      model: this.ttsModel,
-      contents: text,
-      config: {
-        responseModalities: ['AUDIO'],
-        speechConfig: {
-          voiceConfig: {
-            prebuiltVoiceConfig: {
-              voiceName: this.voice,
+  private async generateAudioChunk(text: string, retryCount: number = 0): Promise<string> {
+    const maxRetries = 3;
+
+    try {
+      const response = await this.ai.models.generateContent({
+        model: this.ttsModel,
+        contents: text,
+        config: {
+          responseModalities: ['AUDIO'],
+          speechConfig: {
+            voiceConfig: {
+              prebuiltVoiceConfig: {
+                voiceName: this.voice,
+              },
             },
+            languageCode: 'ja-JP', // 日本語を明示的に指定して一貫した読み上げを確保
           },
-          languageCode: 'ja-JP', // 日本語を明示的に指定して一貫した読み上げを確保
         },
-      },
-    });
+      });
 
-    const audioPart = response.candidates?.[0]?.content?.parts?.[0];
+      const audioPart = response.candidates?.[0]?.content?.parts?.[0];
 
-    if (!audioPart || !('inlineData' in audioPart) || !audioPart.inlineData?.data) {
-      throw new Error('No audio data returned from Gemini API');
+      if (!audioPart || !('inlineData' in audioPart) || !audioPart.inlineData?.data) {
+        throw new Error('No audio data returned from Gemini API');
+      }
+
+      return audioPart.inlineData.data;
+
+    } catch (error: any) {
+      // Gemini APIの内部エラー（500番台）の場合はリトライ
+      const isRetryableError =
+        error?.message?.includes('INTERNAL') ||
+        error?.message?.includes('500') ||
+        error?.message?.includes('503');
+
+      if (isRetryableError && retryCount < maxRetries) {
+        const waitTime = Math.pow(2, retryCount) * 1000; // 指数バックオフ: 1秒, 2秒, 4秒
+        console.log(`  ⚠️  API error, retrying in ${waitTime/1000}s... (attempt ${retryCount + 1}/${maxRetries})`);
+        await new Promise(resolve => setTimeout(resolve, waitTime));
+        return this.generateAudioChunk(text, retryCount + 1);
+      }
+
+      // リトライ不可能なエラー、またはリトライ上限に達した場合
+      console.error(`  ❌ Gemini API error: ${error?.message || error}`);
+      throw new Error(`Gemini API error: ${error?.message || 'Unknown error'}. Please try again later.`);
     }
-
-    return audioPart.inlineData.data;
   }
 
   /**
