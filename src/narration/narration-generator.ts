@@ -242,6 +242,7 @@ export class NarrationGeneratorAgent {
                 voiceName: this.voice,
               },
             },
+            languageCode: 'ja-JP', // 日本語を明示的に指定して一貫した読み上げを確保
           },
         },
       });
@@ -371,6 +372,7 @@ export class NarrationGeneratorAgent {
               voiceName: this.voice,
             },
           },
+          languageCode: 'ja-JP', // 日本語を明示的に指定して一貫した読み上げを確保
         },
       },
     });
