@@ -164,9 +164,9 @@ export class NarrationGeneratorAgent {
 
   /**
    * テキストを適切な長さに分割（500文字以上の場合）
-   * 句点（。）で自然に分割し、各チャンクを200-400文字程度に保つ
+   * 句点（。）で自然に分割し、各チャンクを200-600文字程度に保つ
    */
-  private splitTextIntoChunks(text: string, maxChunkSize: number = 400): string[] {
+  private splitTextIntoChunks(text: string, maxChunkSize: number = 600): string[] {
     // 短いテキストはそのまま返す
     if (text.length <= maxChunkSize) {
       return [text];
@@ -201,15 +201,11 @@ export class NarrationGeneratorAgent {
 
   /**
    * 音声ファイルを正規化（音量・トーンを統一）
+   * シンプルな音量正規化のみで高速化
    */
   private async normalizeAudio(inputPath: string, outputPath: string): Promise<void> {
-    // 音量正規化 + 軽いEQ調整でトーンを統一
-    const normalizeCmd = `ffmpeg -i "${inputPath}" \
-      -af "loudnorm=I=-16:LRA=11:TP=-1.5,\
-           equalizer=f=100:width_type=h:width=50:g=0,\
-           equalizer=f=1000:width_type=h:width=100:g=0,\
-           equalizer=f=3000:width_type=h:width=200:g=0" \
-      -ar 24000 -ac 1 -b:a 128k -y "${outputPath}"`;
+    // 音量正規化のみ（EQは省略して高速化）
+    const normalizeCmd = `ffmpeg -i "${inputPath}" -af "loudnorm=I=-16:TP=-1.5" -ar 24000 -ac 1 -b:a 128k -y "${outputPath}"`;
 
     await execAsync(normalizeCmd);
   }
@@ -250,9 +246,7 @@ export class NarrationGeneratorAgent {
           const tempOutput = outputPath.replace('.mp3', `_merge_${i}.mp3`);
 
           // 0.3秒のクロスフェード
-          const crossfadeCmd = `ffmpeg -i "${currentFile}" -i "${nextFile}" \
-            -filter_complex "[0][1]acrossfade=d=0.3:c1=tri:c2=tri" \
-            -y "${tempOutput}"`;
+          const crossfadeCmd = `ffmpeg -i "${currentFile}" -i "${nextFile}" -filter_complex "[0][1]acrossfade=d=0.3:c1=tri:c2=tri" -y "${tempOutput}"`;
 
           await execAsync(crossfadeCmd);
 
@@ -512,8 +506,8 @@ export class NarrationGeneratorAgent {
 
     console.log(`🎙️  Generating audio from text (${processedText.length} chars)...`);
 
-    // テキストを分割
-    const chunks = this.splitTextIntoChunks(processedText, 400);
+    // テキストを分割（600文字チャンクで処理時間を短縮）
+    const chunks = this.splitTextIntoChunks(processedText, 600);
 
     if (chunks.length > 1) {
       console.log(`📋 Text split into ${chunks.length} chunks to ensure consistent speed`);
