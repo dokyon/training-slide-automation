@@ -125,8 +125,10 @@ export class NarrationGeneratorAgent {
 
     // 辞書の各エントリを適用
     for (const [original, replacement] of sortedEntries) {
+      // 正規表現の特殊文字をエスケープ
+      const escapedOriginal = original.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
       // グローバル置換（大文字小文字区別なし）
-      const regex = new RegExp(original, 'gi');
+      const regex = new RegExp(escapedOriginal, 'gi');
       processedText = processedText.replace(regex, replacement);
     }
 
