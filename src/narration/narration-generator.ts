@@ -51,7 +51,7 @@ export class NarrationGeneratorAgent {
   private dictionary: Dictionary | null = null;
   private outputDir: string = './output/narration';
   private voice: string = 'Puck'; // 30代男性、明るくフレッシュな声
-  private ttsModel: string = 'gemini-2.5-pro-tts'; // Gemini 2.5 Pro TTS（高品質・声質一貫性）
+  private ttsModel: string = 'gemini-2.5-flash-preview-tts'; // Gemini 2.5 Flash TTS（公式ドキュメント準拠）
   private rateLimitMs: number = 1000; // API rate limit待機時間（デフォルト: 1秒 = 有料プラン想定）
   private denoiser: AudioDenoiser; // ノイズ除去エンジン
   private enableDenoise: boolean = false; // ノイズ除去の有効/無効
