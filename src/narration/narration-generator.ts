@@ -300,10 +300,10 @@ export class NarrationGeneratorAgent {
 
       console.log(`  🎙️  Generating audio for: ${sectionTitle} (${processedText.length} chars)`);
 
-      // Gemini TTS API呼び出し
+      // Gemini TTS API呼び出し（公式ドキュメント準拠の形式）
       const response = await this.ai.models.generateContent({
         model: this.ttsModel,
-        contents: processedText,
+        contents: [{ parts: [{ text: processedText }] }],
         config: {
           responseModalities: ['AUDIO'],
           speechConfig: {
@@ -312,7 +312,6 @@ export class NarrationGeneratorAgent {
                 voiceName: this.voice,
               },
             },
-            languageCode: 'ja-JP', // 日本語を明示的に指定して一貫した読み上げを確保
           },
         },
       });
@@ -429,7 +428,7 @@ export class NarrationGeneratorAgent {
     try {
       const response = await this.ai.models.generateContent({
         model: this.ttsModel,
-        contents: text,
+        contents: [{ parts: [{ text: text }] }],
         config: {
           responseModalities: ['AUDIO'],
           speechConfig: {
@@ -438,7 +437,6 @@ export class NarrationGeneratorAgent {
                 voiceName: this.voice,
               },
             },
-            languageCode: 'ja-JP', // 日本語を明示的に指定して一貫した読み上げを確保
           },
         },
       });
