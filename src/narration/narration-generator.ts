@@ -5,7 +5,7 @@ import path from 'path';
 import { ScriptInput, Section } from '../types.js';
 import { exec } from 'child_process';
 import { promisify } from 'util';
-import { AudioDenoiser, DenoiseLevel, DenoiseOptions } from './audio-denoiser.js';
+import { AudioDenoiser, DenoiseLevel, DenoiseOptions, NoiseType } from './audio-denoiser.js';
 
 const execAsync = promisify(exec);
 
@@ -51,13 +51,14 @@ export class NarrationGeneratorAgent {
   private dictionary: Dictionary | null = null;
   private outputDir: string = './output/narration';
   private voice: string = 'Puck'; // 30代男性、明るくフレッシュな声
-  private ttsModel: string = 'gemini-2.5-pro-preview-tts'; // Gemini 2.5 Pro TTS（高品質）
+  private ttsModel: string = 'gemini-2.5-flash-preview-tts'; // Gemini 2.5 Flash TTS（呼吸音が少ない）
   private rateLimitMs: number = 1000; // API rate limit待機時間（デフォルト: 1秒 = 有料プラン想定）
   private denoiser: AudioDenoiser; // ノイズ除去エンジン
-  private enableDenoise: boolean = false; // ノイズ除去の有効/無効
+  private enableDenoise: boolean = false; // ノイズ除去の有効/無効（デフォルトOFF）
   private denoiseOptions: DenoiseOptions = {
     level: DenoiseLevel.AUTO,
-    preserveQuality: true
+    preserveQuality: true,
+    targetType: NoiseType.BREATH // 呼吸音除去モード
   };
 
   constructor(apiKey?: string, usePaidTier: boolean = true) {

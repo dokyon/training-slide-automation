@@ -24,6 +24,7 @@ export enum NoiseType {
   BACKGROUND_HUM = 'background_hum',     // バックグラウンドハム音
   CLICK_POP = 'click_pop',               // クリック・ポップ音
   ROOM_TONE = 'room_tone',               // 部屋の環境音
+  BREATH = 'breath',                     // 呼吸音・息遣い
   MIXED = 'mixed'                        // 混合ノイズ
 }
 
@@ -130,48 +131,77 @@ export class AudioDenoiser {
   private buildDenoiseFilter(level: DenoiseLevel, noiseType: NoiseType, preserveQuality: boolean): string {
     const filters: string[] = [];
 
-    switch (level) {
-      case DenoiseLevel.LIGHT:
-        // 軽度: 基本的なFFTノイズ除去
-        filters.push('afftdn=nf=-20:tn=1');
-        if (noiseType === NoiseType.BACKGROUND_HUM) {
-          filters.push('highpass=f=80');  // 低周波ノイズ除去
-        }
-        break;
+    // 呼吸音・息遣い専用の処理
+    if (noiseType === NoiseType.BREATH) {
+      console.log('🌬️  呼吸音除去モード');
 
-      case DenoiseLevel.MEDIUM:
-        // 中度: より強力なノイズ除去
-        filters.push('afftdn=nf=-25:tn=1');
-        filters.push('highpass=f=100');
-        filters.push('lowpass=f=8000');
+      // 1. ノイズゲート: -35dB以下の音を除去（呼吸音は通常-40dB～-30dB）
+      filters.push('agate=threshold=-35dB:ratio=10:attack=10:release=100:makeup=2');
 
-        // クリック・ポップ音除去
-        if (noiseType === NoiseType.CLICK_POP || noiseType === NoiseType.MIXED) {
+      // 2. ハイパスフィルター: 120Hz以下の低周波をカット（呼吸音は低周波が多い）
+      filters.push('highpass=f=120:poles=2');
+
+      // 3. FFTノイズ除去: 呼吸音の周波数帯を除去
+      filters.push('afftdn=nf=-25:tn=1:om=o:tn=1');
+
+      // 4. 無音区間の除去（start_periodsで開始部分の無音も除去）
+      filters.push('silenceremove=start_periods=1:start_duration=0.1:start_threshold=-40dB:detection=peak');
+
+      // 5. 音声帯域の強調（100Hz～8kHzを強調、それ以外を減衰）
+      filters.push('lowpass=f=8000:poles=2');
+
+      // レベルに応じた追加フィルター
+      if (level === DenoiseLevel.STRONG || level === DenoiseLevel.AUTO) {
+        // より強力な呼吸音除去
+        filters.push('afftdn=nf=-30:tn=1');
+        filters.push('silenceremove=stop_periods=-1:stop_duration=0.2:stop_threshold=-45dB');
+      }
+
+    } else {
+      // 通常のノイズ除去処理
+      switch (level) {
+        case DenoiseLevel.LIGHT:
+          // 軽度: 基本的なFFTノイズ除去
+          filters.push('afftdn=nf=-20:tn=1');
+          if (noiseType === NoiseType.BACKGROUND_HUM) {
+            filters.push('highpass=f=80');  // 低周波ノイズ除去
+          }
+          break;
+
+        case DenoiseLevel.MEDIUM:
+          // 中度: より強力なノイズ除去
+          filters.push('afftdn=nf=-25:tn=1');
+          filters.push('highpass=f=100');
+          filters.push('lowpass=f=8000');
+
+          // クリック・ポップ音除去
+          if (noiseType === NoiseType.CLICK_POP || noiseType === NoiseType.MIXED) {
+            filters.push('adeclick=t=1');
+            filters.push('adeclip');
+          }
+          break;
+
+        case DenoiseLevel.STRONG:
+          // 強度: 最大限のノイズ除去
+          filters.push('afftdn=nf=-30:tn=1');
+          filters.push('highpass=f=120');
+          filters.push('lowpass=f=7000');
+          filters.push('anlmdn=s=0.001:p=0.002:r=0.002:m=15');  // 適応型ノイズ除去
+
+          // クリック・ポップ音除去
           filters.push('adeclick=t=1');
           filters.push('adeclip');
-        }
-        break;
 
-      case DenoiseLevel.STRONG:
-        // 強度: 最大限のノイズ除去
-        filters.push('afftdn=nf=-30:tn=1');
-        filters.push('highpass=f=120');
-        filters.push('lowpass=f=7000');
-        filters.push('anlmdn=s=0.001:p=0.002:r=0.002:m=15');  // 適応型ノイズ除去
+          // ホワイトノイズ除去
+          if (noiseType === NoiseType.WHITE_NOISE) {
+            filters.push('highpass=f=150');
+          }
+          break;
 
-        // クリック・ポップ音除去
-        filters.push('adeclick=t=1');
-        filters.push('adeclip');
-
-        // ホワイトノイズ除去
-        if (noiseType === NoiseType.WHITE_NOISE) {
-          filters.push('highpass=f=150');
-        }
-        break;
-
-      case DenoiseLevel.NONE:
-      default:
-        return '';
+        case DenoiseLevel.NONE:
+        default:
+          return '';
+      }
     }
 
     // 音質保持モード
