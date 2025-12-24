@@ -54,7 +54,7 @@ export class NarrationGeneratorAgent {
   private ttsModel: string = 'gemini-2.5-flash-preview-tts'; // Gemini 2.5 Flash TTS（呼吸音が少ない）
   private rateLimitMs: number = 1000; // API rate limit待機時間（デフォルト: 1秒 = 有料プラン想定）
   private denoiser: AudioDenoiser; // ノイズ除去エンジン
-  private enableDenoise: boolean = false; // ノイズ除去の有効/無効（デフォルトOFF）
+  private enableDenoise: boolean = true; // ノイズ除去の有効/無効（デフォルトON - 呼吸音除去）
   private denoiseOptions: DenoiseOptions = {
     level: DenoiseLevel.AUTO,
     preserveQuality: true,
