@@ -50,7 +50,7 @@ export class NarrationGeneratorAgent {
   private ai: GoogleGenAI;
   private dictionary: Dictionary | null = null;
   private outputDir: string = './output/narration';
-  private voice: string = 'Puck'; // 30代男性、明るくフレッシュな声
+  private voice: string = 'Charon'; // Informative（情報的、ナレーション向き、呼吸音少ない）
   private ttsModel: string = 'gemini-2.5-flash-preview-tts'; // Gemini 2.5 Flash TTS（呼吸音が少ない）
   private rateLimitMs: number = 1000; // API rate limit待機時間（デフォルト: 1秒 = 有料プラン想定）
   private denoiser: AudioDenoiser; // ノイズ除去エンジン
